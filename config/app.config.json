@@ -1,0 +1,23 @@
+{
+    "llm": {
+        "baseUrl": "https://openrouter.ai/api/v1",
+        "model": "google/gemini-3-pro-preview",
+        "enableWebSearch": true
+    },
+    "email": {
+        "rateLimit": {
+            "perSmtp": 50,
+            "delayBetweenEmails": 2000
+        }
+    },
+    "company": {
+        "name": "Your Glass Jar Factory",
+        "services": [
+            "Custom glass jars",
+            "Bulk manufacturing",
+            "European delivery"
+        ],
+        "website": "https://your-factory.com",
+        "contactEmail": "sales@your-factory.com"
+    }
+}
