@@ -56,8 +56,14 @@ program
                 logger.info(`[${i + 1}/${customers.length}] Processing ${customer.email} (${customer.website})`);
 
                 try {
-                    // Get SMTP with least sends (load balancing)
-                    const smtp = smtpPool.getNextSmtp();
+                    // Get SMTP with least sends (load balancing), excluding blacklisted
+                    let smtp = smtpPool.getNextSmtp();
+
+                    if (!smtp) {
+                        logger.error(`Skipping ${customer.email}: No available SMTP accounts`);
+                        continue;
+                    }
+
                     logger.info(`Selected SMTP: ${smtp.email} (sent: ${smtp.sentCount})`);
 
                     // Generate email content
@@ -69,15 +75,38 @@ program
                         logger.info(`Body:\n${email.body}`);
                         logger.info('--- End Preview ---');
                     } else {
-                        // Send email
-                        const result = await emailSender.sendEmail(smtp, customer, email);
+                        // Try sending with retry on auth failure
+                        let sent = false;
+                        let attempts = 0;
+                        const maxAttempts = 3;
 
-                        // Record to database
-                        recordEmailSent(result);
+                        while (!sent && attempts < maxAttempts && smtp) {
+                            attempts++;
+                            const result = await emailSender.sendEmail(smtp, customer, email);
 
-                        // Update SMTP send count on success
-                        if (result.status === 'success') {
-                            smtpPool.recordSend(smtp.email);
+                            // Record to database
+                            recordEmailSent(result);
+
+                            if (result.status === 'success') {
+                                smtpPool.recordSend(smtp.email);
+                                sent = true;
+                            } else if (result.errorMessage?.includes('Invalid login') ||
+                                result.errorMessage?.includes('authentication') ||
+                                result.errorMessage?.includes('BadCredentials')) {
+                                // Auth failure - blacklist this SMTP and try another
+                                smtpPool.markAsFailed(smtp.email);
+                                smtp = smtpPool.getNextSmtp();
+
+                                if (smtp) {
+                                    logger.info(`Retrying with ${smtp.email} (attempt ${attempts + 1}/${maxAttempts})...`);
+                                } else {
+                                    logger.error('No more SMTP accounts available for retry');
+                                }
+                            } else {
+                                // Other error (network, rate limit, etc.) - don't retry immediately
+                                logger.warn(`Non-auth error, not retrying: ${result.errorMessage}`);
+                                break;
+                            }
                         }
                     }
                 } catch (error) {

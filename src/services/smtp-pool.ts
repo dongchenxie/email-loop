@@ -6,6 +6,7 @@ import { logger } from './logger';
 
 export class SmtpPool {
     private accounts: SmtpAccount[] = [];
+    private blacklist: Set<string> = new Set(); // Temporarily failed accounts
 
     constructor() {
         this.loadAccounts();
@@ -24,9 +25,6 @@ export class SmtpPool {
         const content = fs.readFileSync(smtpPath, 'utf-8');
 
         try {
-            // Import parse function dynamically or use require if needed, but since we use import in other files:
-            // We need to add import at top level, but for this edit let's assume imports are handled or use simple parsing if dependencies issue.
-            // Actually, we already use csv-parse in csv-parser.ts, so let's import it properly.
             const { parse } = require('csv-parse/sync');
 
             const records = parse(content, {
@@ -36,7 +34,6 @@ export class SmtpPool {
             });
 
             for (const record of records) {
-                // Expecting email and password (or appPassword) columns
                 const email = record.email || record.Email;
                 const password = record.password || record.Password || record.appPassword || record.app_password;
 
@@ -46,7 +43,6 @@ export class SmtpPool {
                         appPassword: password.trim(),
                     };
                     this.accounts.push(account);
-                    // Ensure account exists in database
                     ensureSmtpAccount(account.email);
                 } else {
                     logger.warn('Skipping invalid SMTP record:', record);
@@ -67,18 +63,39 @@ export class SmtpPool {
     }
 
     /**
-     * Get SMTP account with the least sent emails (load balancing)
+     * Get SMTP account with the least sent emails, excluding blacklisted ones
      */
-    getNextSmtp(): SmtpAccountWithStats {
-        const accountsWithStats: SmtpAccountWithStats[] = this.accounts.map(acc => ({
+    getNextSmtp(): SmtpAccountWithStats | null {
+        const availableAccounts = this.accounts.filter(acc => !this.blacklist.has(acc.email));
+
+        if (availableAccounts.length === 0) {
+            logger.error('No available SMTP accounts - all are blacklisted!');
+            return null;
+        }
+
+        const accountsWithStats: SmtpAccountWithStats[] = availableAccounts.map(acc => ({
             ...acc,
             sentCount: getSmtpSentCount(acc.email),
         }));
 
-        // Sort by sent count (ascending) and return the one with least sends
         accountsWithStats.sort((a, b) => a.sentCount - b.sentCount);
 
         return accountsWithStats[0];
+    }
+
+    /**
+     * Mark SMTP as failed (temporarily blacklist)
+     */
+    markAsFailed(email: string): void {
+        this.blacklist.add(email);
+        logger.warn(`SMTP ${email} blacklisted for this session (${this.getAvailableCount()} accounts remaining)`);
+    }
+
+    /**
+     * Get count of available (non-blacklisted) accounts
+     */
+    getAvailableCount(): number {
+        return this.accounts.length - this.blacklist.size;
     }
 
     /**
