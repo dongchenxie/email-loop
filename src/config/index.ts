@@ -41,6 +41,10 @@ export function getOpenRouterApiKey(): string {
     return apiKey;
 }
 
+export function getReplyTo(): string | undefined {
+    return process.env.REPLY_TO;
+}
+
 export function getSmtpFilePath(): string {
     return DEFAULT_SMTP_PATH;
 }

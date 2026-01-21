@@ -1,4 +1,4 @@
-import { Customer, GeneratedEmail } from '../types';
+import { Customer, LlmResponse } from '../types';
 import { AppConfig } from '../types';
 import { LLMClient } from './llm-client';
 import { loadPromptTemplate } from '../config';
@@ -16,13 +16,17 @@ export class EmailGenerator {
     /**
      * Generate personalized email for a customer
      */
-    async generateEmail(customer: Customer): Promise<GeneratedEmail> {
+    async generateEmail(customer: Customer): Promise<LlmResponse> {
         logger.info(`Generating email for ${customer.email} (${customer.website})...`);
 
-        const email = await this.llmClient.generateEmail(customer, this.promptTemplate);
+        const result = await this.llmClient.generateEmail(customer, this.promptTemplate);
 
-        logger.info(`Generated subject: ${email.subject}`);
+        if (result.decision === 'EMAIL') {
+            logger.info(`Generated subject: ${result.subject}`);
+        } else {
+            logger.info(`Decision: ${result.decision} (Reason: ${result.reason})`);
+        }
 
-        return email;
+        return result;
     }
 }

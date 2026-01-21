@@ -3,7 +3,7 @@
 import { Command } from 'commander';
 import * as path from 'path';
 import { initDatabase, closeDatabase, recordEmailSent } from './db/database';
-import { loadConfig } from './config';
+import { loadConfig, getReplyTo } from './config';
 import { parseCSV } from './services/csv-parser';
 import { SmtpPool } from './services/smtp-pool';
 import { EmailGenerator } from './services/email-generator';
@@ -67,7 +67,16 @@ program
                     logger.info(`Selected SMTP: ${smtp.email} (sent: ${smtp.sentCount})`);
 
                     // Generate email content
-                    const email = await emailGenerator.generateEmail(customer);
+                    const generatedResult = await emailGenerator.generateEmail(customer);
+
+                    // Handle Decision
+                    if (generatedResult.decision !== 'EMAIL') {
+                        logger.info(`Skipping ${customer.email}: decision is ${generatedResult.decision} (${generatedResult.reason})`);
+                        continue;
+                    }
+
+                    // For EMAIL decision, treat generatedResult as the email content
+                    const email = generatedResult;
 
                     if (options.dryRun) {
                         logger.info('--- DRY RUN: Email Preview ---');
@@ -82,7 +91,8 @@ program
 
                         while (!sent && attempts < maxAttempts && smtp) {
                             attempts++;
-                            const result = await emailSender.sendEmail(smtp, customer, email);
+                            attempts++;
+                            const result = await emailSender.sendEmail(smtp, customer, email, getReplyTo());
 
                             // Record to database
                             recordEmailSent(result);

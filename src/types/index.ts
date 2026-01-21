@@ -24,12 +24,24 @@ export interface GeneratedEmail {
     body: string;
 }
 
+// LLM Response structure
+export interface LlmResponse {
+    decision: 'EMAIL' | 'SKIP' | 'ROUTE';
+    subject?: string;
+    body?: string;
+    reason?: string;
+    company?: string;
+    confidence?: string;
+    next_step?: string;
+    exception?: string;
+}
+
 // Email send result
 export interface EmailSendResult {
     customer: Customer;
     smtpEmail: string;
     subject: string;
-    status: 'success' | 'failed';
+    status: 'success' | 'failed' | 'skipped';
     errorMessage?: string;
     sentAt: Date;
 }
@@ -42,6 +54,7 @@ export interface AppConfig {
         enableWebSearch: boolean;
     };
     email: {
+        replyTo?: string;
         rateLimit: {
             perSmtp: number;
             delayBetweenEmails: number;

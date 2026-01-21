@@ -1,20 +1,24 @@
 import * as nodemailer from 'nodemailer';
-import { SmtpAccountWithStats, Customer, GeneratedEmail, EmailSendResult } from '../types';
+import { SmtpAccountWithStats, Customer, LlmResponse, EmailSendResult } from '../types';
 import { logger } from './logger';
 
 export class EmailSender {
     /**
      * Send an email using the specified SMTP account
      */
+    /**
+     * Send an email using the specified SMTP account
+     */
     async sendEmail(
         smtpAccount: SmtpAccountWithStats,
         customer: Customer,
-        email: GeneratedEmail
+        email: LlmResponse,
+        replyTo?: string
     ): Promise<EmailSendResult> {
         const result: EmailSendResult = {
             customer,
             smtpEmail: smtpAccount.email,
-            subject: email.subject,
+            subject: email.subject || '',
             status: 'failed',
             sentAt: new Date(),
         };
@@ -35,10 +39,14 @@ export class EmailSender {
             const mailOptions: nodemailer.SendMailOptions = {
                 from: smtpAccount.email,
                 to: customer.email,
-                subject: email.subject,
-                text: email.body,
-                html: this.convertToHtml(email.body),
+                subject: email.subject!,
+                text: email.body!,
+                html: this.convertToHtml(email.body!),
             };
+
+            if (replyTo) {
+                mailOptions.replyTo = replyTo;
+            }
 
             // Send email
             await transporter.sendMail(mailOptions);

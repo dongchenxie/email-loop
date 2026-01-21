@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import { getOpenRouterApiKey, loadConfig } from '../config';
-import { AppConfig, Customer, GeneratedEmail } from '../types';
+import { AppConfig, Customer, GeneratedEmail, LlmResponse } from '../types';
 import { logger } from './logger';
 
 export class LLMClient {
@@ -23,13 +23,12 @@ export class LLMClient {
     /**
      * Generate personalized email content for a customer
      */
-    async generateEmail(customer: Customer, promptTemplate: string): Promise<GeneratedEmail> {
+    async generateEmail(customer: Customer, promptTemplate: string): Promise<LlmResponse> {
         // Replace placeholders in prompt template
         const prompt = this.replacePlaceholders(promptTemplate, customer);
 
         try {
             logger.info(`Calling LLM for ${customer.email} (model: ${this.config.llm.model})`);
-            // logger.debug(`Prompt:\n${prompt}`);
 
             // Build the request with web search enabled if configured
             const requestBody: OpenAI.ChatCompletionCreateParams = {
@@ -37,7 +36,7 @@ export class LLMClient {
                 messages: [
                     {
                         role: 'system',
-                        content: 'You are a professional sales copywriter. You must respond with a valid JSON object containing "subject" and "body" fields.',
+                        content: 'You are a professional sales copywriter. You must respond with a valid JSON object.',
                     },
                     {
                         role: 'user',
@@ -54,16 +53,41 @@ export class LLMClient {
                         schema: {
                             type: "object",
                             properties: {
-                                subject: {
+                                decision: {
                                     type: "string",
-                                    description: "The subject line of the email"
+                                    enum: ["EMAIL", "SKIP", "ROUTE"],
+                                    description: "Decision whether to send an email, skip, or route to another department."
+                                },
+                                subject: {
+                                    type: ["string", "null"],
+                                    description: "The subject line of the email (required if decision is EMAIL)"
                                 },
                                 body: {
-                                    type: "string",
-                                    description: "The body content of the email"
+                                    type: ["string", "null"],
+                                    description: "The body content of the email (required if decision is EMAIL)"
+                                },
+                                reason: {
+                                    type: ["string", "null"],
+                                    description: "Reason for the decision"
+                                },
+                                company: {
+                                    type: ["string", "null"],
+                                    description: "Company name or website"
+                                },
+                                confidence: {
+                                    type: ["string", "null"],
+                                    description: "Confidence level of the decision"
+                                },
+                                next_step: {
+                                    type: ["string", "null"],
+                                    description: "Next step if decision is ROUTE"
+                                },
+                                exception: {
+                                    type: ["string", "null"],
+                                    description: "Exception notes if decision is SKIP"
                                 }
                             },
-                            required: ["subject", "body"],
+                            required: ["decision", "subject", "body", "reason", "company", "confidence", "next_step", "exception"],
                             additionalProperties: false
                         }
                     }
@@ -86,7 +110,27 @@ export class LLMClient {
             logger.info(`Received LLM response for ${customer.email}:\n${content}`);
 
             // Parse JSON response (it should be valid JSON now)
-            return JSON.parse(content);
+            try {
+                return JSON.parse(content) as LlmResponse;
+            } catch (parseError) {
+                logger.warn(`JSON parse failed, attempting repair for ${customer.email}: ${parseError}`);
+                // Basic repair for truncated JSON
+                let repairedContent = content.trim();
+                // If it ends with a quote but no brace, add brace
+                if (repairedContent.endsWith('"')) {
+                    repairedContent += "}";
+                } else if (!repairedContent.endsWith('}')) {
+                    // unexpected end, try to close the last open string and object
+                    repairedContent += '"}';
+                }
+
+                try {
+                    return JSON.parse(repairedContent) as LlmResponse;
+                } catch (repairError) {
+                    logger.error(`Repair failed: ${repairError}`);
+                    throw parseError;
+                }
+            }
         } catch (error) {
             logger.error(`Error generating email for ${customer.email}:`, error);
             throw error;
