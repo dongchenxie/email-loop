@@ -44,7 +44,7 @@ export class LLMClient {
                     },
                 ],
                 temperature: 0.7,
-                max_tokens: 5000,
+                max_tokens: 20000,
                 response_format: {
                     type: "json_schema",
                     json_schema: {
