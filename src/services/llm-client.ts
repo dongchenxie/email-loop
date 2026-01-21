@@ -100,7 +100,7 @@ export class LLMClient {
             }
 
             const response = await this.client.chat.completions.create(requestBody);
-
+            logger.info(`LLM response`, response)
             const content = response.choices[0]?.message?.content;
 
             if (!content) {
