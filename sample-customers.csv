@@ -1,7 +1,7 @@
-website,email,firstName,lastName
-https://example-jam-company.eu,xdc811@gmail.com,John,Smith
-https://gourmetwarehouse.ca/,xdc811@gmail.com,Anna,Mueller
-https://thejamguy.com/,xdc811@gmail.com,,
-https://example-jam-company.eu,xdc811@gmail.com,John,Smith
-https://gourmetwarehouse.ca/,xdc811@gmail.com,Anna,Mueller
-https://thejamguy.com/,xdc811@gmail.com,,
+website,email,firstName,lastName,language
+https://example-jam-company.eu,xdc811@gmail.com,John,Smith,English
+https://gourmetwarehouse.ca/,xdc811@gmail.com,Anna,Mueller,English
+https://thejamguy.com/,xdc811@gmail.com,,,English
+https://example-jam-company.eu,xdc811@gmail.com,John,Smith,English
+https://gourmetwarehouse.ca/,xdc811@gmail.com,Anna,Mueller,English
+https://thejamguy.com/,xdc811@gmail.com,,,English
